@@ -16,6 +16,13 @@ static int kOEXTokenFieldCellRepresentedObjectKey;
 @interface OEXTokenFieldCell () <NSTextStorageDelegate, OEXTokenTextStorageDelegate>
 @end
 
+//@interface NSTokenFieldCell (Private)
+//
+//- (id)_representedObjectsForString:(id)arg1 andAttributedString:(id)arg2 range:(struct _NSRange)arg3;
+//- (BOOL)tokenTextView:(id)arg1 writeSelectionToPasteboard:(id)arg2 type:(id)arg3;
+//
+//@end
+
 @implementation OEXTokenFieldCell
 {
     NSTokenFieldCell    *_tokenCell;
@@ -144,6 +151,72 @@ static int kOEXTokenFieldCellRepresentedObjectKey;
 - (void)tokenTextStorage:(OEXTokenTextStorage *)textStorage updateTokenAttachment:(NSTextAttachment *)attachment forRange:(NSRange)range
 {
     [self updateTokenAttachment:attachment forAttributedString:[textStorage attributedSubstringFromRange:range]];
+}
+
+#pragma mark - Pasteboard
+
+- (BOOL)tokenTextView:(NSTextView *)tokenView writeSelectionToPasteboard:(NSPasteboard *)pasteboard type:(NSString *)type
+{
+	if ([tokenView respondsToSelector:@selector(selectedRanges)]) {
+		NSAttributedString *attrString = [tokenView attributedString];
+		NSMutableArray *selectedObjects = [NSMutableArray new];
+
+		for (NSValue *rangeValue in [(id)tokenView selectedRanges]) {
+			NSRange range = rangeValue.rangeValue;
+			NSRange currentRange = range;
+
+			do {
+				NSRange effectiveRange = NSMakeRange(0, 0);
+				NSRange searchRange = NSMakeRange(currentRange.location, MIN(currentRange.length, attrString.length - currentRange.location));
+
+				id attachment = [attrString attribute:NSAttachmentAttributeName atIndex:currentRange.location effectiveRange:&effectiveRange];
+
+				if (attachment != nil) {
+					NSAttributedString *subStr = [attrString attributedSubstringFromRange:effectiveRange];
+					id representedObject = [self representedObjectWithAttachment:attachment attributedString:subStr];
+
+					if (representedObject != nil) {
+						[selectedObjects addObject:representedObject];
+					}
+				}
+				else {
+					NSDictionary *attributes = [attrString attributesAtIndex:currentRange.location
+													   longestEffectiveRange:&effectiveRange
+																	 inRange:searchRange];
+
+					if (attributes != nil) {
+						id attachment = [attributes objectForKey:NSAttachmentAttributeName];
+						NSAttributedString *subStr = [attrString attributedSubstringFromRange:effectiveRange];
+
+						if (attachment != nil) {
+							id representedObject = [self representedObjectWithAttachment:attachment attributedString:subStr];
+
+							if (representedObject != nil) {
+								[selectedObjects addObject:representedObject];
+							}
+						}
+						else {
+							NSString *string = [subStr string];
+
+							if (string != nil) {
+								[selectedObjects addObject:string];
+							}
+						}
+					}
+				}
+				
+				currentRange.location += effectiveRange.length;
+				currentRange.length -= effectiveRange.length;
+			}
+			while (currentRange.location < (range.location + range.length));
+		}
+
+		if ([pasteboard writeObjects:selectedObjects]) {
+			return YES;
+		}
+	}
+
+	return NO;
 }
 
 @end
