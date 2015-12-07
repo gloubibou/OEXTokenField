@@ -13,7 +13,7 @@
 
 static int kOEXTokenFieldCellRepresentedObjectKey;
 
-@interface OEXTokenFieldCell () <OEXTokenTextStorageDelegate>
+@interface OEXTokenFieldCell () <NSTextStorageDelegate, OEXTokenTextStorageDelegate>
 @end
 
 @implementation OEXTokenFieldCell
